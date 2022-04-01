@@ -2,19 +2,29 @@ name: "Enforce License Compliance"
 runs:
   using: "composite"
   steps:
-    - if: github.repository_owner == 'getsentry'
-      name: 'Fetch FOSSA_API_KEY'
-      id: fetch_key
+    - if: github.repository_owner == 'getsentry' # kinda gross that we have to repeat this
+      name: 'Pick a FOSSA API key'
+      id: set_key
       shell: bash
       run: |
 
-        # We can't use GitHub Secrets for this key because we want it to be
-        # available in PRs from forks. This is a push-only key for a low-
-        # privilege account, so it is safe (enough) to expose publicly. This
-        # is a hack to set it in one place in case we ever do need to roll it. 🤷
+        # FOSSA has two kinds of API keys (aka tokens), a full-privilege key
+        # and a low-privilege "push-only" key. The practical difference is that
+        # using a full key provides more feedback on scan failure. We have a
+        # full key stored in org-wide GitHub Secrets, but this isn't available
+        # when making a PR from a fork, so if it's missing we fall back to a
+        # push-only key attached to a low-privilege account, which is safe
+        # (enough) to expose publicly here in this file.
+        #
+        # See also: https://docs.fossa.com/docs/api-reference#api-tokens
 
-        curl -O https://raw.githubusercontent.com/getsentry/.github/main/.github/workflows/FOSSA_API_KEY
-        echo "::set-output name=key::$(cat FOSSA_API_KEY | grep -v '#')"
+        TEST="IS THIS LEAKED IN LOGS?"
+        echo "::set-output name=preferred_key::$TEST"
+
+        #PREFERRED="${{ secrets.FOSSA_API_KEY }}"
+        FALLBACK="9fc50c40b136c68873ad05aec573cf3e"
+        echo "::set-output name=key::$FALLBACK"
+        #echo "::set-output name=key::${PREFERRED:-$FALLBACK}"
 
     - if: github.repository_owner == 'getsentry'
       name: 'Checkout Code'
@@ -22,13 +32,13 @@ runs:
 
     - if: github.repository_owner == 'getsentry'
       name: 'Run FOSSA Scan'
-      uses: fossas/fossa-action@v1.1.0
+      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
       with:
         api-key: ${{ steps.fetch_key.outputs.key }}
 
     - if: github.repository_owner == 'getsentry'
       name: 'Run FOSSA Test'
-      uses: fossas/fossa-action@v1.1.0
+      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
       with:
         api-key: ${{ steps.fetch_key.outputs.key }}
         run-tests: true
