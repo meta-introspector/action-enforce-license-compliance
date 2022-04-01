@@ -18,13 +18,9 @@ runs:
         #
         # See also: https://docs.fossa.com/docs/api-reference#api-tokens
 
-        TEST="IS THIS LEAKED IN LOGS?"
-        echo "::set-output name=preferred_key::$TEST"
-
-        #PREFERRED="${{ github.secrets.FOSSA_API_KEY }}"
+        PREFERRED="${{ github.secrets.FOSSA_API_KEY }}"
         FALLBACK="9fc50c40b136c68873ad05aec573cf3e"
-        echo "::set-output name=key::$FALLBACK"
-        #echo "::set-output name=key::${PREFERRED:-$FALLBACK}"
+        echo "::set-output name=key::${PREFERRED:-$FALLBACK}"
 
     - if: github.repository_owner == 'getsentry'
       name: 'Checkout Code'
