@@ -26,7 +26,7 @@ runs:
         # See also: https://docs.fossa.com/docs/api-reference#api-tokens
 
         FALLBACK="9fc50c40b136c68873ad05aec573cf3e"
-        echo "::set-output name=key::${PREFERRED:-$FALLBACK}"
+        echo "key=${PREFERRED:-$FALLBACK}" >> "$GITHUB_OUTPUT"
 
         echo "Turned off for now, #inc-187"
         #    - if: github.repository_owner == 'getsentry'
