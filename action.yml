@@ -40,6 +40,18 @@ runs:
       with:
         api-key: ${{ steps.set_key.outputs.key }}
 
+    - if: github.repository_owner == 'getsentry' && steps.analyze.outcome == 'failure'
+      name: 'Send error to Sentry on FOSSA scan failure'
+      shell: bash
+      env:
+        SENTRY_URL: https://self-hosted.getsentry.net/
+        SENTRY_ORG: self-hosted
+        SENTRY_PROJECT: test
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_TOKEN }}
+      run: |
+        curl -sL https://sentry.io/get-cli/ | sh
+        sentry-cli send-event -m "FOSSA scan failure" -e repo:$GITHUB_REPOSITORY actor:$GITHUB_ACTOR branch:$GITHUB_REF_NAME event_name:$GITHUB_EVENT_NAME url:'$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'
+
       # We want to use steps.<step_id>.outcome here since it is the result of a completed
       # step before continue-on-error is applied.
     - if: github.repository_owner == 'getsentry' && steps.analyze.outcome == 'success'
