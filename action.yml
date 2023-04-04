@@ -2,6 +2,7 @@ name: "Enforce License Compliance"
 inputs:
   fossa_api_key:
     required: false
+secrets: inherit
 runs:
   using: "composite"
   steps:
@@ -47,10 +48,11 @@ runs:
         SENTRY_URL: https://self-hosted.getsentry.net/
         SENTRY_ORG: self-hosted
         SENTRY_PROJECT: test
-        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_TOKEN }}
+        SENTRY_DSN: https://0bc733fd07014f73a703d97ab5452ae2@self-hosted.getsentry.net/4
+        # SENTRY_AUTH_TOKEN: ${{ inputs.sentry_token }}
       run: |
         curl -sL https://sentry.io/get-cli/ | sh
-        sentry-cli send-event -m "FOSSA scan failure" -e repo:$GITHUB_REPOSITORY actor:$GITHUB_ACTOR branch:$GITHUB_REF_NAME event_name:$GITHUB_EVENT_NAME url:'$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'
+        sentry-cli send-event -m "FOSSA scan failure" -e repo:$GITHUB_REPOSITORY -e actor:$GITHUB_ACTOR -e branch:$GITHUB_REF_NAME -e event_name:$GITHUB_EVENT_NAME -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
       # We want to use steps.<step_id>.outcome here since it is the result of a completed
       # step before continue-on-error is applied.
