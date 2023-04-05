@@ -5,8 +5,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - if: github.repository_owner == 'getsentry' # kinda gross that we have to repeat this
-      name: 'Pick a FOSSA API key'
+    - if: github.repository_owner != 'getsentry'
+      shell: bash
+      run: echo "This action should only run on getsentry repos" && exit 1
+
+    - name: 'Pick a FOSSA API key'
       id: set_key
       shell: bash
       env:
@@ -28,31 +31,46 @@ runs:
         FALLBACK="9fc50c40b136c68873ad05aec573cf3e"
         echo "key=${PREFERRED:-$FALLBACK}" >> "$GITHUB_OUTPUT"
 
-        echo "Turned off for now, #inc-187"
-        #    - if: github.repository_owner == 'getsentry'
-        #      name: 'Checkout Code'
-        #      uses: actions/checkout@v2
-        #
-        #    - if: github.repository_owner == 'getsentry'
-        #      name: 'Run FOSSA Scan'
-        #      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
-        #      with:
-        #        api-key: ${{ steps.set_key.outputs.key }}
-        #
-        #    - if: github.repository_owner == 'getsentry'
-        #      name: 'Run FOSSA Test'
-        #      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
-        #      with:
-        #        api-key: ${{ steps.set_key.outputs.key }}
-        #        run-tests: true
-        #
-        #    - if: github.repository_owner == 'getsentry' && failure()
-        #      name: 'Handle errors'
-        #      shell: bash
-        #      run: |
-        #        echo
-        #        echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
-        #        echo
-        #        echo "Eep! It seems that this PR introduces a license violation. Did you add any libraries? Do they use the GPL or some weird license? Am I a confused bot? If you need a hand, cc: @getsentry/open-source in a comment. 🙏"
-        #        echo
-        #        echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
+    - name: 'Checkout Code'
+      uses: actions/checkout@v2
+
+    - name: 'Run FOSSA Scan'
+      id: analyze
+      continue-on-error: true
+      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
+      with:
+        api-key: ${{ steps.set_key.outputs.key }}
+
+    - if: steps.analyze.outcome == 'failure'
+      name: 'Send error to Sentry on FOSSA scan failure'
+      shell: bash
+      env:
+        SENTRY_URL: https://self-hosted.getsentry.net/
+        SENTRY_ORG: self-hosted
+        SENTRY_PROJECT: test
+        SENTRY_DSN: https://0bc733fd07014f73a703d97ab5452ae2@self-hosted.getsentry.net/4
+      run: |
+        curl -sL https://sentry.io/get-cli/ | sh
+        # Environment variables will automatically be sent, so we just want some minimal information
+        sentry-cli send-event -m "FOSSA scan failure in $GITHUB_REPOSITORY" -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+      # We only want to run license compliance test if FOSSA scan succeeds. This is to unblock CI
+      # on FOSSA outages.
+    - if: steps.analyze.outcome == 'success'
+      name: 'Run FOSSA Test'
+      id: test
+      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
+      with:
+        api-key: ${{ steps.set_key.outputs.key }}
+        run-tests: true
+
+    - if: github.repository_owner == 'getsentry' && failure()
+      name: 'Handle errors'
+      shell: bash
+      run: |
+        echo
+        echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
+        echo
+        echo "Eep! It seems that this PR introduces a license violation. Did you add any libraries? Do they use the GPL or some weird license? Am I a confused bot? If you need a hand, cc: @getsentry/open-source in a comment. 🙏"
+        echo
+        echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
