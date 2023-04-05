@@ -6,6 +6,7 @@ runs:
   using: "composite"
   steps:
     - if: github.repository_owner != 'getsentry'
+      shell: bash
       run: echo "This action should only run on getsentry repos" && exit 1
 
     - name: 'Pick a FOSSA API key'
