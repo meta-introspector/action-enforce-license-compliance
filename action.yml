@@ -63,7 +63,7 @@ runs:
         api-key: ${{ steps.set_key.outputs.key }}
         run-tests: true
 
-    - if: failure()
+    - if: github.repository_owner == 'getsentry' && failure()
       name: 'Handle errors'
       shell: bash
       run: |
