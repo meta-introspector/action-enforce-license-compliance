@@ -50,10 +50,11 @@ runs:
         SENTRY_DSN: https://0bc733fd07014f73a703d97ab5452ae2@self-hosted.getsentry.net/4
       run: |
         curl -sL https://sentry.io/get-cli/ | sh
-        sentry-cli send-event -m "FOSSA scan failure" -e repo:$GITHUB_REPOSITORY -e actor:$GITHUB_ACTOR -e branch:$GITHUB_REF_NAME -e event_name:$GITHUB_EVENT_NAME -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+        # Environment variables will automatically be sent, so we just want some minimal information
+        sentry-cli send-event -m "FOSSA scan failure in $GITHUB_REPOSITORY" -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
-      # We want to use steps.<step_id>.outcome here since it is the result of a completed
-      # step before continue-on-error is applied.
+      # We only want to run license compliance test if FOSSA scan succeeds. This is to unblock CI
+      # on FOSSA outages.
     - if: github.repository_owner == 'getsentry' && steps.analyze.outcome == 'success'
       name: 'Run FOSSA Test'
       id: test
