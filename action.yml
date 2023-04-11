@@ -29,7 +29,8 @@ runs:
         # See also: https://docs.fossa.com/docs/api-reference#api-tokens
         FALLBACK="9fc50c40b136c68873ad05aec573cf3e"
         echo "key=${PREFERRED:-$FALLBACK}" >> "$GITHUB_OUTPUT"
-        curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
+        # Install v3.7.4 version of fossa-cli
+        curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/v3.7.4/install-latest.sh | bash
 
     - name: 'Checkout Code'
       uses: actions/checkout@v2
@@ -44,7 +45,20 @@ runs:
         exec &> >(tee -a "analyze_logs.txt")
         fossa analyze
 
-    - if: steps.analyze.outcome == 'failure'
+      # We only want to run license compliance test if FOSSA scan succeeds. This is to unblock CI
+      # on FOSSA outages.
+    - if: steps.analyze.outcome == 'success'
+      name: 'Run FOSSA Test'
+      id: test
+      continue-on-error: true
+      env:
+        FOSSA_API_KEY: ${{ steps.set_key.outputs.key }}
+      shell: bash
+      run: |
+        exec &> >(tee -a "test_logs.txt")
+        fossa test
+
+    - if: steps.analyze.outcome == 'failure' || steps.test.outcome == 'failure'
       name: 'Send error to Sentry on FOSSA scan failure'
       shell: bash
       env:
@@ -53,28 +67,20 @@ runs:
         SENTRY_DSN: https://0bc733fd07014f73a703d97ab5452ae2@self-hosted.getsentry.net/4
       run: |
         curl -sL https://sentry.io/get-cli/ | sh
-        # Environment variables will automatically be sent, so we just want some minimal information
-        sentry-cli send-event -m "FOSSA scan failure in $GITHUB_REPOSITORY" -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
-
-      # We only want to run license compliance test if FOSSA scan succeeds. This is to unblock CI
-      # on FOSSA outages.
-    - if: steps.analyze.outcome == 'success'
-      name: 'Run FOSSA Test'
-      id: test
-      env:
-        FOSSA_API_KEY: ${{ steps.set_key.outputs.key }}
-      shell: bash
-      run: |
-        exec &> >(tee -a "test_logs.txt")
-        fossa test
-
-    - if: github.repository_owner == 'getsentry' && failure()
-      name: 'Handle errors'
-      shell: bash
-      run: |
-        echo
-        echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
-        echo
-        echo "Eep! It seems that this PR introduces a license violation. Did you add any libraries? Do they use the GPL or some weird license? Am I a confused bot? If you need a hand, cc: @getsentry/open-source in a comment. 🙏"
-        echo
-        echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
+        if [[ ${{ steps.analyze.outcome }} == 'failure' ]]; then
+          # Environment variables will automatically be sent, so we just want some minimal information
+          sentry-cli send-event -m "FOSSA scan failure" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile analyze_logs.txt
+          exit 0
+        fi
+        test_logs=$(cat test_logs.txt)
+        if [[ "$test_logs =~ /.*The scan has revealed issues. Number of issues found:.*/gm ]]; then
+          echo
+          echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
+          echo
+          echo "Eep! It seems that this PR introduces a license violation. Did you add any libraries? Do they use the GPL or some weird license? Am I a confused bot? If you need a hand, cc: @getsentry/open-source in a comment. 🙏"
+          echo
+          echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
+          exit 1
+        fi
+        sentry-cli send-event -m "FOSSA test failure" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile test_logs.txt
+        exit 0
