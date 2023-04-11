@@ -9,7 +9,7 @@ runs:
       shell: bash
       run: echo "This action should only run on getsentry repos" && exit 1
 
-    - name: 'Pick a FOSSA API key'
+    - name: 'Pick a FOSSA API key and install FOSSA cli'
       id: set_key
       shell: bash
       env:
@@ -27,9 +27,9 @@ runs:
         # here in this file and gives us at least basic pass/fail.
         #
         # See also: https://docs.fossa.com/docs/api-reference#api-tokens
-
         FALLBACK="9fc50c40b136c68873ad05aec573cf3e"
         echo "key=${PREFERRED:-$FALLBACK}" >> "$GITHUB_OUTPUT"
+        curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
 
     - name: 'Checkout Code'
       uses: actions/checkout@v2
@@ -37,9 +37,12 @@ runs:
     - name: 'Run FOSSA Scan'
       id: analyze
       continue-on-error: true
-      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
-      with:
-        api-key: ${{ steps.set_key.outputs.key }}
+      env:
+        FOSSA_API_KEY: ${{ steps.set_key.outputs.key }}
+      shell: bash
+      run: |
+        exec &> >(tee -a "analyze_logs.txt")
+        fossa analyze
 
     - if: steps.analyze.outcome == 'failure'
       name: 'Send error to Sentry on FOSSA scan failure'
@@ -47,7 +50,6 @@ runs:
       env:
         SENTRY_URL: https://self-hosted.getsentry.net/
         SENTRY_ORG: self-hosted
-        SENTRY_PROJECT: test
         SENTRY_DSN: https://0bc733fd07014f73a703d97ab5452ae2@self-hosted.getsentry.net/4
       run: |
         curl -sL https://sentry.io/get-cli/ | sh
@@ -59,10 +61,12 @@ runs:
     - if: steps.analyze.outcome == 'success'
       name: 'Run FOSSA Test'
       id: test
-      uses: fossas/fossa-action@5913e730490ebf75ae47b59687b7e590289eed92
-      with:
-        api-key: ${{ steps.set_key.outputs.key }}
-        run-tests: true
+      env:
+        FOSSA_API_KEY: ${{ steps.set_key.outputs.key }}
+      shell: bash
+      run: |
+        exec &> >(tee -a "test_logs.txt")
+        fossa test
 
     - if: github.repository_owner == 'getsentry' && failure()
       name: 'Handle errors'
