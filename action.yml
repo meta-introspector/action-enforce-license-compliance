@@ -72,8 +72,7 @@ runs:
           sentry-cli send-event -m "FOSSA scan failure" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile analyze_logs.txt
           exit 0
         fi
-        test_logs=$(cat test_logs.txt)
-        if [[ "$test_logs =~ /.*The scan has revealed issues. Number of issues found:.*/gm ]]; then
+        if grep -q "The scan has revealed issues. Number of issues found:" test_logs.txt; then
           echo
           echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
           echo
