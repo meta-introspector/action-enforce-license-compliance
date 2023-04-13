@@ -66,8 +66,8 @@ runs:
         SENTRY_ORG: self-hosted
         SENTRY_DSN: https://0bc733fd07014f73a703d97ab5452ae2@self-hosted.getsentry.net/4
       run: |
-        curl -sL https://sentry.io/get-cli/ | sh
         if [[ ${{ steps.analyze.outcome }} == 'failure' ]]; then
+          curl -sL https://sentry.io/get-cli/ | sh
           # Environment variables will automatically be sent, so we just want some minimal information
           sentry-cli send-event -m "FOSSA scan failure" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile analyze_logs.txt
           exit 0
@@ -81,5 +81,5 @@ runs:
           echo "🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 🛑 "
           exit 1
         fi
+        curl -sL https://sentry.io/get-cli/ | sh
         sentry-cli send-event -m "FOSSA test failure" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile test_logs.txt
-        exit 0
