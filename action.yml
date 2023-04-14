@@ -29,7 +29,7 @@ runs:
         # See also: https://docs.fossa.com/docs/api-reference#api-tokens
         FALLBACK="9fc50c40b136c68873ad05aec573cf3e"
         echo "key=${PREFERRED:-$FALLBACK}" >> "$GITHUB_OUTPUT"
-        # Install v3.7.4 version of fossa-cli
+        # Install specific version of fossa-cli to guarantee stability of parsing fossa job outputs
         curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/v3.7.5/install-latest.sh | bash
 
     - name: 'Checkout Code'
