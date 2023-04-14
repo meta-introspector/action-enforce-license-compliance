@@ -56,7 +56,8 @@ runs:
       shell: bash
       run: |
         exec &> >(tee -a "test_logs.txt")
-        fossa test
+        # Set timeout to 10 minutes
+        fossa test --timeout 600
 
     - if: steps.analyze.outcome == 'failure' || steps.test.outcome == 'failure'
       name: 'Send error to Sentry on FOSSA scan failure'
