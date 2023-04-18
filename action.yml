@@ -18,7 +18,7 @@ runs:
 
         # FOSSA has two kinds of API keys (aka tokens), a full-privilege key
         # and a low-privilege "push-only" key. The practical difference is that
-        # the full key provides more feedback on `fossa test` failure. We have
+        # the full key provides more feedback on `fossa test` errors. We have
         # a full key stored in org-wide GitHub Secrets, but a) we can't access
         # it in an action, only in a workflow (hence the input here) and b) it
         # isn't available even in a workflow when run in a PR from a fork. If
@@ -35,7 +35,7 @@ runs:
     - name: 'Checkout Code'
       uses: actions/checkout@v2
 
-    - name: 'Run FOSSA Scan'
+    - name: 'Run `fossa analyze`'
       id: analyze
       continue-on-error: true
       env:
@@ -45,10 +45,10 @@ runs:
         exec &> >(tee -a "analyze_logs.txt")
         fossa analyze
 
-      # We only want to run license compliance test if FOSSA scan succeeds. This is to unblock CI
+      # We only want to run license compliance test if `fossa test` succeeds. This is to unblock CI
       # on FOSSA outages.
     - if: steps.analyze.outcome == 'success'
-      name: 'Run FOSSA Test'
+      name: 'Run `fossa test`'
       id: test
       continue-on-error: true
       env:
@@ -56,21 +56,19 @@ runs:
       shell: bash
       run: |
         exec &> >(tee -a "test_logs.txt")
-        # Set timeout to 10 minutes
-        fossa test --timeout 600
+        # Set timeout to 5 minutes
+        fossa test --timeout 300
 
     - if: steps.analyze.outcome == 'failure' || steps.test.outcome == 'failure'
-      name: 'Send error to Sentry on FOSSA scan failure'
+      name: 'Send error to Sentry on `fossa-cli` errors'
       shell: bash
       env:
-        SENTRY_URL: https://self-hosted.getsentry.net/
-        SENTRY_ORG: self-hosted
-        SENTRY_DSN: https://0bc733fd07014f73a703d97ab5452ae2@self-hosted.getsentry.net/4
+        SENTRY_DSN: https://decbca863c554db095624ede8a83310c@o1.ingest.sentry.io/4505031352713216
       run: |
         if [[ ${{ steps.analyze.outcome }} == 'failure' ]]; then
           curl -sL https://sentry.io/get-cli/ | sh
           # Environment variables will automatically be sent, so we just want some minimal information
-          sentry-cli send-event -m "FOSSA scan failure" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile analyze_logs.txt
+          sentry-cli send-event -m "FOSSA analyze error" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile analyze_logs.txt
           exit 0
         fi
         if grep -q "The scan has revealed issues. Number of issues found:" test_logs.txt; then
@@ -83,4 +81,4 @@ runs:
           exit 1
         fi
         curl -sL https://sentry.io/get-cli/ | sh
-        sentry-cli send-event -m "FOSSA test failure" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile test_logs.txt
+        sentry-cli send-event -m "FOSSA test error" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile test_logs.txt
