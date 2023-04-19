@@ -18,7 +18,7 @@ runs:
 
         # FOSSA has two kinds of API keys (aka tokens), a full-privilege key
         # and a low-privilege "push-only" key. The practical difference is that
-        # the full key provides more feedback on `fossa test` errors. We have
+        # the full key provides more feedback on `fossa test` failure. We have
         # a full key stored in org-wide GitHub Secrets, but a) we can't access
         # it in an action, only in a workflow (hence the input here) and b) it
         # isn't available even in a workflow when run in a PR from a fork. If
@@ -56,7 +56,7 @@ runs:
       shell: bash
       run: |
         exec &> >(tee -a "test_logs.txt")
-        # Set timeout to 5 minutes
+        # Set timeout to 5 minutes (default of 60 minutes is waaaay too long to block CI)
         fossa test --timeout 300
 
     - if: steps.analyze.outcome == 'failure' || steps.test.outcome == 'failure'
@@ -68,7 +68,8 @@ runs:
         if [[ ${{ steps.analyze.outcome }} == 'failure' ]]; then
           curl -sL https://sentry.io/get-cli/ | sh
           # Environment variables will automatically be sent, so we just want some minimal information
-          sentry-cli send-event -m "FOSSA analyze error" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile analyze_logs.txt
+          error_msg=$(cat analyze_logs.txt | grep -zoP '(?<=>>> Relevant errors\n\n    Error\n\n      ).*?(?=\n)' || echo 'unknown error message')
+          sentry-cli send-event -m "FOSSA analyze error: $error_msg" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile analyze_logs.txt
           exit 0
         fi
         if grep -q "The scan has revealed issues. Number of issues found:" test_logs.txt; then
@@ -81,4 +82,5 @@ runs:
           exit 1
         fi
         curl -sL https://sentry.io/get-cli/ | sh
-        sentry-cli send-event -m "FOSSA test error" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile test_logs.txt
+        error_msg=$(cat test_logs.txt | grep -zoP '(?<=>>> Relevant errors\n\n    Error\n\n      ).*?(?=\n)' || echo 'unknown error message')
+        sentry-cli send-event -m "FOSSA test error: $error_msg" -t repo:$GITHUB_REPOSITORY -e url:$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID --logfile test_logs.txt
