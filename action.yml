@@ -5,9 +5,9 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - if: github.repository_owner != 'getsentry'
+    - if: github.repository_owner != 'getsentry' && github.repository_owner != 'codecov'
       shell: bash
-      run: echo "This action should only run on getsentry repos" && exit 1
+      run: echo "This action should only run on getsentry and codecov repos" && exit 1
 
     - name: 'Pick a FOSSA API key and install FOSSA cli'
       id: set_key
